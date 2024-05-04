@@ -1,0 +1,2 @@
+Shane Dyrdahl
+Sprites Demo
