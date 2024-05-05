@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+<head>
+<script src="https://code.jquery.com/jquery-3.7.1.js" integrity="sha256-eKhayi8LEQwp4NKxN+CfCh+3qOVUtJn3QNZ0TciWLP4=" crossorigin="anonymous"></script>
+
+<script src="js/sprite.js"></script>
+
+
+</head>
+<body style="">
+<canvas id='mycanvas' style="">
+</canvas>
+
+
+<script>
+    const canvas = document.querySelector("canvas");
+    const offscreen = new OffscreenCanvas(256, 256);
+    const sprites_to_draw = new Array(2); 
+    var draw_loop_timeout;
+    var img = new Image();
+    var color_map = new Image();
+    
+    sprites_to_draw[0] = new Array(0); //background and 
+    sprites_to_draw[1] = new Array(0); //forground
+
+    $.getJSON( "Sonic/animationData.json", function( data ) {
+        //sprites_to_draw[1].push( new Sprite(data, 0 ,0, "idleSpin") );
+        //sprites_to_draw[1].push( new Sprite(data, 100 ,100, "idleWave") );
+        sprites_to_draw[1].push( new Sprite(data, 150 ,650, "idle") );
+
+    });
+
+
+    $( document ).ready(function() {
+        console.log( "Page is now ready" );
+        resize();
+
+        img.onload = function() {
+            var ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        };
+        img.src = 'imgs/bk_lord.jpg';
+
+      
+        color_map.onload = function() {
+            var ctx = offscreen.getContext('2d');
+            ctx.drawImage(color_map, 0, 0, canvas.width, canvas.height);
+        };
+        color_map.src = 'imgs/bk_lord.png';
+     
+        draw_loop_timeout = setInterval(draw_loop, 33);
+    });
+
+    //window.addEventListener('resize', resize);
+
+    let start, previousTimeStamp;
+
+    function draw_loop(){
+
+        if (start === undefined) {
+            start = Date.now();
+        }else if ( (Date.now() - start) < 100){
+            requestAnimationFrame(draw_loop);
+            return;
+        };
+        start = Date.now();
+        
+        var background_length = sprites_to_draw[0].length;
+        var forground_length  = sprites_to_draw[1].length;
+        var has_background_changed = false;
+
+        const context = canvas.getContext('2d');
+        //context.clearRect(0, 0, canvas.width, canvas.height);
+
+        //Draw background sprites
+        for(var i = 0; i < background_length; i++){
+            has_background_changed = sprites_to_draw[0][i].draw();
+        }
+
+        //Draw forground sprites
+        for(var i = 0; i < forground_length; i++){
+            sprites_to_draw[1][i].draw( { 'has_background_changed' : has_background_changed,
+                                          'key_change' : false
+                                        }
+            );
+        }
+        requestAnimationFrame(draw_loop);
+    }
+
+    function resize(){
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        offscreen.width = window.innerWidth;
+        offscreen.height = window.innerHeight;
+
+    }
+</script>
+
+</body>
+</html>
+
