@@ -144,27 +144,27 @@ class Sprite {
         this.lastY = newY;
     }
     changeBackground(side){
-        var currentPosition = { x: this.x, y: this.y };
-        var distanceTraveled = Math.sqrt(
-            Math.pow(currentPosition.x - lastTransitionPosition.x, 2) +
-            Math.pow(currentPosition.y - lastTransitionPosition.y, 2)
-        );
-
-        if (distanceTraveled < minimumTravelDistance) {
-            console.log("Minimum travel distance not met. Please move more.");
-            return; // Exit the function if minimum distance is not met
-        }
-
-        console.log("Transitioning background to " + side);
-        lastTransitionPosition = currentPosition; // Update the position at the time of transition
+        // var currentPosition = { x: this.x, y: this.y };
+        // var distanceTraveled = Math.sqrt(
+        //     Math.pow(currentPosition.x - lastTransitionPosition.x, 2) +
+        //     Math.pow(currentPosition.y - lastTransitionPosition.y, 2)
+        // );
+        //
+        // if (distanceTraveled < minimumTravelDistance) {
+        //     console.log("Minimum travel distance not met. Please move more.");
+        //     return; // Exit the function if minimum distance is not met
+        // }
+        //
+        // console.log("Transitioning background to " + side);
+        // lastTransitionPosition = currentPosition; // Update the position at the time of transition
 
 
         if (currBackground === 'center') {
             switch (side) {
                 case 'N':
                     currBackground = 'north';
-                    // this.y = (window.innerHeight - this.y) + this.h ;
-                    // this.y = Math.max(0, Math.min(this.y, canvas.height - this.h));
+                    this.y = (window.innerHeight - this.y) - this.h - this.y_v ;
+                    this.y = Math.max(0, Math.min(this.y, window.innerHeight - this.h));
                     break;
                 case 'E':
                     currBackground = 'east';
@@ -188,6 +188,8 @@ class Sprite {
 
         } else if (currBackground === 'south' && side === 'N') {
             currBackground = 'center';
+            this.y = (window.innerHeight - this.y) - this.h - this.y_v ;
+            this.y = Math.max(0, Math.min(this.y, window.innerHeight - this.h));
             mapTransition = true;
 
         } else if (currBackground === 'west' && side === 'E') {
