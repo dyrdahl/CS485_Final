@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="https://code.jquery.com/jquery-3.7.1.js" integrity="sha256-eKhayi8LEQwp4NKxN+CfCh+3qOVUtJn3QNZ0TciWLP4=" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/0.7.2/p5.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/0.7.2/addons/p5.dom.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/0.7.2/addons/p5.sound.min.js"></script>
+
+    <script src="js/sprite.js"></script>
+
+</head>
+<body style="">
+
+<canvas id='mycanvas' style="">
+</canvas>
+
+<style>
+    canvas{
+        display: block;
+    }
+    body {
+        /*height: 100%;*/
+        /*background-image: url("imgs/titleScreen.png");  !* DISABLE TITLE*!*/
+        margin: 0;
+        background-position: left top;
+        background-repeat: no-repeat;
+        background-size: cover, contain, auto;
+        background-color: #ffffff;
+        /*overflow: hidden;*/
+    }
+
+    /*Buttons*/
+    .button {
+        display: inline-block;
+        padding: 1px 15px;
+        font-size: 50px;
+        cursor: crosshair;
+        text-align: center;
+        text-decoration: none;
+        outline: none;
+        color: #fffeb4;
+        border: none;
+        border-radius: 15px;
+        box-shadow: 0 9px rgba(0, 45, 246, 0.32);
+        margin: 8px 20px 8px 8px;
+    }
+    .button:active {
+        background-color: #3e8e41;
+        box-shadow: 0 5px rgba(59, 161, 0, 0.27);
+        transform: translateY(4px);
+    }
+    .button9 {
+        background-color: #2b9872;
+        box-shadow: 0 9px #0b3d0a;
+        width: 100%;
+        height: 100%;
+    }
+    .button9:hover {
+        background-color: #2E86AB !important;
+    }
+    .start_game {
+        position: relative;
+        background-position: left top;
+        background-repeat: no-repeat;
+        background-size: contain;
+        box-sizing: content-box;
+        width: 100%;
+        height: 100%;
+    }
+    .start_game_button {
+        position: fixed;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        width: 400px;
+        height: 60px;
+    }
+
+    /* DEBUG SLIDERS */
+    .boxy {
+        /*background-image: url("imgs/box_texture_3.jpeg");*/
+        background-position: center center;
+        position: absolute;
+        top: 0px;
+        left: 50%;
+        transform: translate3d(-50%, 0, 0);
+        width: fit-content;
+        z-index: 0;
+        background-size: cover, contain, auto;
+        border: 2px solid #ff0c0c;
+        padding: 8px;
+        background-color: rgba(248, 182, 182, 0.4);
+    }
+</style>
+
+<div id="main" style="display:none">
+    <div class="start_game">
+        <div class="start_game_button">
+            <button class="button button9" id="but_y"></button>
+        </div>
+    </div>
+</div>
+<div class="boxy">
+    <h3>PLAYER 1 SCORE:</h3>
+    <p>Total: <span id="playerOneScore"></span></p>
+</div>
+
+<script>
+    const canvas = document.querySelector("canvas");
+    const sprites_to_draw = new Array(3);
+    var draw_loop_timeout;
+    var img = new Image();
+
+    var imageCache = {};
+
+    sprites_to_draw[0] = new Array(0); //background and
+    sprites_to_draw[1] = new Array(0); //boids and
+    sprites_to_draw[2] = new Array(0); //foreground
+
+    var currSprite = 'idle';
+    var keyChanged = false;
+
+    const numBoids = 300;
+
+    let alignSlider, cohesionSlider, separationSlider;  // DEBUG SLIDERS
+
+    let alignFactor = 25
+    let separationFactor = 50
+    let cohesionFactor = 50
+    let mForce = 0.1
+    let mSpeed = 5
+
+    let mapTransition = false;
+    var currBackground = 'center';
+    let prev_Background = 'center';
+
+    // setTimeout(function () {                                                               // DISABLE TITLE
+    //     $('.button').prop('disabled', true); // Disable button until loading finished      // DISABLE TITLE
+    //     $('.button').text("LOADING");                                                      // DISABLE TITLE
+    //     $('#but_y').css('background-color', '#b60000');                                    // DISABLE TITLE
+    //                                                                                        // DISABLE TITLE
+    //     // Display 'Start Game' Button                                                     // DISABLE TITLE
+    //     $('#main').show();                                                                 // DISABLE TITLE
+    //                                                                                        // DISABLE TITLE
+    //     // initializeGame();                                                               // DISABLE TITLE
+    // }, 2);                                                                                 // DISABLE TITLE
+
+    function setup(){
+
+        //Note: PLAYER SPRITES
+        $.getJSON( "../Penguins/animationData.json", function( data ) {
+            console.log("============== STARTING ==============");
+            sprites_to_draw[2].push( new Sprite(data, Math.round(window.innerWidth/2) , Math.round(window.innerHeight/2), currSprite, true) );
+        });
+
+        //Note: BOID SPRITES
+        $.getJSON( "../Boid/animationData.json", function( data ) {
+            console.log("============== STARTING ==============");
+            for(let i = 0; i < numBoids; i++)
+            {
+                sprites_to_draw[1].push( new Boid(data, 4 , 4, 'lazy', true) );
+            }
+        });
+
+        //Note: BACKGROUND SPRITES
+        $.getJSON( "../Background/animationData.json", function( data ) {
+            sprites_to_draw[0].push( new BackgroundSprite(data, currBackground) );
+        });
+        gameStarted('game_started');
+
+        // setTimeout(function () {                                           // DISABLE TITLE
+        //     $('.button').text("START GAME");                               // DISABLE TITLE
+        //     $('#but_y').css('background-color', '#43b209');                // DISABLE TITLE
+        //     $('.button').prop('disabled', false);                          // DISABLE TITLE
+        //     // $('.button').show();                                        // DISABLE TITLE
+        // }, 20);                                                            // DISABLE TITLE
+    }
+    function debuggingOutput(message, color) {
+        console.log("%c" + message, "color:" + color + ";font-weight:bold;");
+    }
+    var keyStates = {};
+    function gameStarted() {
+        $(document).ready(function () {
+            console.log("Page is now ready");
+            resize();
+            alignSlider = createSlider(0, 2, 1.5, 0.1);
+            cohesionSlider = createSlider(0, 2, 1, 0.1);
+            separationSlider = createSlider(0, 2, 2, 0.1);
+
+            // createCanvas(600, 400); // DEBUGGING BOIDS
+            // img.onload = function () {
+            //     var ctx = canvas.getContext('2d');
+            //     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            // };
+            // img.src = 'imgs/bk2.png';
+            draw_loop_timeout = setInterval(draw_loop, 33);
+        });
+
+        window.addEventListener('resize', resize);
+
+        document.addEventListener('keydown', function (event) {
+            if (!keyStates[event.key]) {
+                keyStates[event.key] = {pressed: true, firstPress: true};
+                keyChanged = true;
+            }
+        });
+
+        document.addEventListener('keyup', function (event) {
+            if (keyStates[event.key]) {
+                delete keyStates[event.key];
+            }
+        });
+
+        function updateSpriteMovement() {
+            if (Object.keys(keyStates).length === 0) {
+                currSprite = 'idle';
+            }
+            else {
+                var north = keyStates['w'];
+                var south = keyStates['s'];
+                var east = keyStates['d'];
+                var west = keyStates['a'];
+
+                if (north && east) {
+                    currSprite = 'walk_NE';
+                } else if (north && west) {
+                    currSprite = 'walk_NW';
+                } else if (south && east) {
+                    currSprite = 'walk_SE';
+                } else if (south && west) {
+                    currSprite = 'walk_SW';
+
+                } else {
+                    if (north) {
+                        currSprite = 'walk_N';
+                    }
+                    if (south) {
+                        currSprite = 'walk_S';
+                    }
+                    if (east) {
+                        currSprite = 'walk_E';
+                    }
+                    if (west) {
+                        currSprite = 'walk_W';
+                    }
+                    if(keyStates['f']){
+                        currSprite = 'idleSpin';
+                    }
+                    if(keyStates['q']){
+                        currSprite = 'idleFall';
+                    }
+                    if(keyStates['e']){
+                        currSprite = 'idleLayDown';
+                    }
+                }
+            }
+        }
+
+
+        let start, previousTimeStamp;
+
+        function draw_loop() {
+            if (start === undefined) {
+                start = Date.now();
+            }else if ( (Date.now() - start) < 40){
+                requestAnimationFrame(draw_loop);
+                return;
+            };
+            start = Date.now();
+
+            updateSpriteMovement();
+            var background_length = sprites_to_draw[0].length;
+            var boids_length = sprites_to_draw[1].length;
+            var foreground_length = sprites_to_draw[2].length;
+            var has_background_changed = false;
+
+            if(mapTransition){
+                $.getJSON( "../Boid/animationData.json", function( data ) {
+                    sprites_to_draw[1] = [];
+
+                    for(let i = 0; i < numBoids; i++)
+                    {
+                        sprites_to_draw[1].push( new Boid(data, window.innerWidth - 100 , window.innerHeight - 100, 'lazy', true) );
+                    }
+                });
+                $.getJSON( "../Background/animationData.json", function( data ) {
+                    console.log("CURRENT BACK: " + currBackground);
+                    sprites_to_draw[0] = [];
+
+                    sprites_to_draw[0].push( new BackgroundSprite(data, currBackground) );
+                });
+
+                mapTransition = false;
+            }
+
+            //Draw background sprites
+            for (var i = 0; i < background_length; i++) {
+                has_background_changed = sprites_to_draw[0][i].draw();
+            }
+
+            // Draw Boid Sprites
+            for(var i = 0; i < boids_length; i++) {
+                sprites_to_draw[1][i].draw({
+                    'boids': sprites_to_draw[1]
+                });
+            }
+
+            //Draw foreground sprites
+            for (var i = 0; i < foreground_length; i++) {
+                sprites_to_draw[2][i].draw({
+                        'has_background_changed': has_background_changed,
+                        'key_change': keyChanged
+                    }
+                );
+            }
+
+            sprites_to_draw[2].forEach(boid => {
+                sprites_to_draw[1].forEach(sprite => {
+                    if (checkCollision(boid, sprite)) {
+                        sprites_to_draw[1].splice(sprites_to_draw[1].indexOf(sprite), 1);
+                        player1_score += 1;
+                    }
+                });
+            });
+            displayScore.innerHTML = player1_score;
+            requestAnimationFrame(draw_loop);
+        }
+    }
+    let player1_score = 0;
+    var displayScore = document.getElementById("playerOneScore");
+
+    function checkCollision(boid, sprite) {
+        //Note: Action to take for proximity
+        let distance = calculateDistance(boid, sprite);
+
+        if(distance < 75){
+            // Calculate Position of Boid Hitbox
+            let boid_left = boid.x;
+            let boid_right = boid.x + boid.w;
+            let boid_top = boid.y;
+            let boid_bottom = boid.y + boid.h;
+
+            // Calculate Position of Sprite Hitbox
+            let sprite_left = sprite.x;
+            let sprite_right = sprite.x + sprite.w;
+            let sprite_top = sprite.y;
+            let sprite_bottom = sprite.y + sprite.h;
+
+            // Check if the hitboxes have overlapped
+            if (boid_right < sprite_left || boid_left > sprite_right || boid_bottom < sprite_top || boid_top > sprite_bottom) {
+                return false;
+            }
+            return true;
+        }
+        return false;
+    }
+
+    function calculateDistance(obj1, obj2) {
+        let dx = (obj1.x + obj1.w / 2) - (obj2.x + obj2.w / 2);
+        let dy = (obj1.y + obj1.h / 2) - (obj2.y + obj2.h / 2);
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    function resize(){
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
+
+    $('.button').click(function() {
+        var buttonId = this.id.replace('but_', '').toUpperCase();
+        var nextState = undefined;
+
+        if(buttonId === 'Y'){
+            nextState = 'game_started';
+        }
+        $('body').css('background-image', 'none');
+
+        $('.button').hide();
+        $('#main').hide();
+        gameStarted(nextState);
+    });
+</script>
+</body>
+</html>
+
