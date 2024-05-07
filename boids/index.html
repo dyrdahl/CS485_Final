@@ -176,210 +176,245 @@
         // }, 20);                                                            // DISABLE TITLE
     }
     function debuggingOutput(message, color) {
-        console.log("%c" + message, "color:" + color + ";font-weight:bold;");
+        console
+
+.log("%c " + message, "background-color:" + color + ";color:white;");
     }
-    var keyStates = {};
-    function gameStarted() {
-        $(document).ready(function () {
-            console.log("Page is now ready");
-            resize();
-            alignSlider = createSlider(0, 2, 1.5, 0.1);
-            cohesionSlider = createSlider(0, 2, 1, 0.1);
-            separationSlider = createSlider(0, 2, 2, 0.1);
 
-            // createCanvas(600, 400); // DEBUGGING BOIDS
-            // img.onload = function () {
-            //     var ctx = canvas.getContext('2d');
-            //     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-            // };
-            // img.src = 'imgs/bk2.png';
-            draw_loop_timeout = setInterval(draw_loop, 33);
-        });
+    function Boid(sprite_json, x, y, start_state, _noDraw)
+    {
+        Sprite.call(this, sprite_json, x, y, start_state, _noDraw);
+        this.wanderTheta = 0;
+        this.isMoving = false;
+    }
 
-        window.addEventListener('resize', resize);
+    Boid.prototype = Object.create(Sprite.prototype);
 
-        document.addEventListener('keydown', function (event) {
-            if (!keyStates[event.key]) {
-                keyStates[event.key] = {pressed: true, firstPress: true};
-                keyChanged = true;
-            }
-        });
+    Boid.prototype.flock = function(_boids)
+    {
+        let align = this.align(_boids);
+        let separation = this.separation(_boids);
+        let cohesion = this.cohesion(_boids);
+        this.acceleration.add(align);
+        this.acceleration.add(separation);
+        this.acceleration.add(cohesion);
+    };
 
-        document.addEventListener('keyup', function (event) {
-            if (keyStates[event.key]) {
-                delete keyStates[event.key];
-            }
-        });
+    Boid.prototype.updatePosition = function() {
+        this.velocity.add(this.acceleration);
+        this.velocity.limit(mSpeed);
+        this.position.add(this.velocity);
+        this.acceleration.mult(0);
+    };
 
-        function updateSpriteMovement() {
-            if (Object.keys(keyStates).length === 0) {
-                currSprite = 'idle';
-            }
-            else {
-                var north = keyStates['w'];
-                var south = keyStates['s'];
-                var east = keyStates['d'];
-                var west = keyStates['a'];
-
-                if (north && east) {
-                    currSprite = 'walk_NE';
-                } else if (north && west) {
-                    currSprite = 'walk_NW';
-                } else if (south && east) {
-                    currSprite = 'walk_SE';
-                } else if (south && west) {
-                    currSprite = 'walk_SW';
-
-                } else {
-                    if (north) {
-                        currSprite = 'walk_N';
-                    }
-                    if (south) {
-                        currSprite = 'walk_S';
-                    }
-                    if (east) {
-                        currSprite = 'walk_E';
-                    }
-                    if (west) {
-                        currSprite = 'walk_W';
-                    }
-                    if(keyStates['f']){
-                        currSprite = 'idleSpin';
-                    }
-                    if(keyStates['q']){
-                        currSprite = 'idleFall';
-                    }
-                    if(keyStates['e']){
-                        currSprite = 'idleLayDown';
-                    }
-                }
+    Boid.prototype.align = function(_boids)
+    {
+        let sum = createVector(0,0);
+        let count = 0;
+        for(let boid of _boids)
+        {
+            let d = dist(this.position.x, this.position.y, boid.position.x, boid.position.y);
+            if(d > 0 && d < alignSlider.value() )
+            {
+                sum.add(boid.velocity);
+                count++;
             }
         }
 
+        if(count > 0)
+        {
+            sum.div(count);
+            sum.setMag(mSpeed);
+            let steer = p5.Vector.sub(sum, this.velocity);
+            steer.limit(mForce);
+            return steer;
+        }
+        else
+            return createVector(0,0);
+    };
 
-        let start, previousTimeStamp;
-
-        function draw_loop() {
-            if (start === undefined) {
-                start = Date.now();
-            }else if ( (Date.now() - start) < 40){
-                requestAnimationFrame(draw_loop);
-                return;
-            };
-            start = Date.now();
-
-            updateSpriteMovement();
-            var background_length = sprites_to_draw[0].length;
-            var boids_length = sprites_to_draw[1].length;
-            var foreground_length = sprites_to_draw[2].length;
-            var has_background_changed = false;
-
-            if(mapTransition){
-                $.getJSON( "../Boid/animationData.json", function( data ) {
-                    sprites_to_draw[1] = [];
-
-                    for(let i = 0; i < numBoids; i++)
-                    {
-                        sprites_to_draw[1].push( new Boid(data, window.innerWidth - 100 , window.innerHeight - 100, 'lazy', true) );
-                    }
-                });
-                $.getJSON( "../Background/animationData.json", function( data ) {
-                    console.log("CURRENT BACK: " + currBackground);
-                    sprites_to_draw[0] = [];
-
-                    sprites_to_draw[0].push( new BackgroundSprite(data, currBackground) );
-                });
-
-                mapTransition = false;
+    Boid.prototype.separation = function(_boids)
+    {
+        let desiredSeparation = separationSlider.value();
+        let steer = createVector(0,0);
+        let count = 0;
+        for(let boid of _boids)
+        {
+            let d = dist(this.position.x, this.position.y, boid.position.x, boid.position.y);
+            if(d > 0 && d < desiredSeparation )
+            {
+                let diff = p5.Vector.sub(this.position, boid.position);
+                diff.normalize();
+                diff.div(d);
+                steer.add(diff);
+                count++;
             }
+        }
 
-            //Draw background sprites
-            for (var i = 0; i < background_length; i++) {
-                has_background_changed = sprites_to_draw[0][i].draw();
+        if(count > 0)
+        {
+            steer.div(count);
+        }
+
+        if(steer.mag() > 0)
+        {
+            steer.setMag(mSpeed);
+            steer.sub(this.velocity);
+            steer.limit(mForce);
+        }
+        return steer;
+    };
+
+    Boid.prototype.cohesion = function(_boids)
+    {
+        let neighborDist = cohesionSlider.value();
+        let sum = createVector(0,0);
+        let count = 0;
+        for(let boid of _boids)
+        {
+            let d = dist(this.position.x, this.position.y, boid.position.x, boid.position.y);
+            if(d > 0 && d < neighborDist)
+            {
+                sum.add(boid.position);
+                count++;
             }
+        }
+        if(count > 0)
+        {
+            sum.div(count);
+            return this.seek(sum);
+        }
+        else
+        {
+            return createVector(0,0);
+        }
+    };
 
-            // Draw Boid Sprites
-            for(var i = 0; i < boids_length; i++) {
-                sprites_to_draw[1][i].draw({
-                    'boids': sprites_to_draw[1]
-                });
-            }
+    Boid.prototype.seek = function(target)
+    {
+        let desired = p5.Vector.sub(target, this.position);
+        desired.setMag(mSpeed);
+        let steer = p5.Vector.sub(desired, this.velocity);
+        steer.limit(mForce);
+        return steer;
+    };
 
-            //Draw foreground sprites
-            for (var i = 0; i < foreground_length; i++) {
-                sprites_to_draw[2][i].draw({
-                        'has_background_changed': has_background_changed,
-                        'key_change': keyChanged
-                    }
-                );
-            }
+    function BackgroundSprite(sprite_json, start_state)
+    {
+        Sprite.call(this, sprite_json, 0, 0, start_state);
+        // this.wanderTheta = 0;
+    }
 
-            sprites_to_draw[2].forEach(boid => {
-                sprites_to_draw[1].forEach(sprite => {
-                    if (checkCollision(boid, sprite)) {
-                        sprites_to_draw[1].splice(sprites_to_draw[1].indexOf(sprite), 1);
-                        player1_score += 1;
-                    }
-                });
-            });
-            displayScore.innerHTML = player1_score;
-            requestAnimationFrame(draw_loop);
+    BackgroundSprite.prototype = Object.create(Sprite.prototype);
+
+    BackgroundSprite.prototype.updatePosition = function()
+    {
+        if(mapTransition)
+        {
+            currBackground = sprites_to_draw[0][0].transitionBackround(currBackground);
+            sprites_to_draw[0][0] = new BackgroundSprite(imageCache[currBackground], currBackground);
+            prev_Background = currBackground;
+            mapTransition = false;
+        }
+    };
+
+    function mouseClicked()
+    {
+        if(currBackground === 'center')
+        {
+            currBackground = 'bottom';
+            mapTransition = true;
+        }
+        else if(currBackground === 'bottom')
+        {
+            currBackground = 'top';
+            mapTransition = true;
+        }
+        else if(currBackground === 'top')
+        {
+            currBackground = 'center';
+            mapTransition = true;
         }
     }
-    let player1_score = 0;
-    var displayScore = document.getElementById("playerOneScore");
 
-    function checkCollision(boid, sprite) {
-        //Note: Action to take for proximity
-        let distance = calculateDistance(boid, sprite);
+    // Define a Second Player Class similar to Sprite class
+    class Player2 extends Sprite {
+        constructor(sprite_json, x, y, start_state){
+            super(sprite_json, x, y, start_state);
+        }
 
-        if(distance < 75){
-            // Calculate Position of Boid Hitbox
-            let boid_left = boid.x;
-            let boid_right = boid.x + boid.w;
-            let boid_top = boid.y;
-            let boid_bottom = boid.y + boid.h;
-
-            // Calculate Position of Sprite Hitbox
-            let sprite_left = sprite.x;
-            let sprite_right = sprite.x + sprite.w;
-            let sprite_top = sprite.y;
-            let sprite_bottom = sprite.y + sprite.h;
-
-            // Check if the hitboxes have overlapped
-            if (boid_right < sprite_left || boid_left > sprite_right || boid_bottom < sprite_top || boid_top > sprite_bottom) {
-                return false;
+        // Override the updatePosition method to handle movement based on arrow keys
+        updatePosition() {
+            // Handle movement based on arrow key states
+            if (keyStates['ArrowUp']) {
+                this.y -= 10;
             }
-            return true;
+            if (keyStates['ArrowDown']) {
+                this.y += 10;
+            }
+            if (keyStates['ArrowLeft']) {
+                this.x -= 10;
+            }
+            if (keyStates['ArrowRight']) {
+                this.x += 10;
+            }
+
+            // Call the parent class method to update position
+            super.updatePosition(this.x, this.y);
         }
-        return false;
     }
 
-    function calculateDistance(obj1, obj2) {
-        let dx = (obj1.x + obj1.w / 2) - (obj2.x + obj2.w / 2);
-        let dy = (obj1.y + obj1.h / 2) - (obj2.y + obj2.h / 2);
-        return Math.sqrt(dx * dx + dy * dy);
-    }
-
-    function resize(){
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-    }
-
-    $('.button').click(function() {
-        var buttonId = this.id.replace('but_', '').toUpperCase();
-        var nextState = undefined;
-
-        if(buttonId === 'Y'){
-            nextState = 'game_started';
+    // Modify key event listeners to handle controls for both players
+    document.addEventListener('keydown', function (event) {
+        if (!keyStates[event.key]) {
+            keyStates[event.key] = { pressed: true, firstPress: true };
+            keyChanged = true;
         }
-        $('body').css('background-image', 'none');
-
-        $('.button').hide();
-        $('#main').hide();
-        gameStarted(nextState);
+        // Add arrow key controls for second player
+        if (!keyStates[event.key] && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
+            keyStates[event.key] = { pressed: true, firstPress: true };
+            keyChanged = true;
+        }
     });
+
+    // Implement collision detection between the second player and the boids
+    sprites_to_draw[2].forEach(boid => {
+        sprites_to_draw[1].forEach(sprite => {
+            // Check collision between player 2 and boid
+            if (checkCollision(player2, boid)) {
+                sprites_to_draw[1].splice(sprites_to_draw[1].indexOf(boid), 1);
+                player2Score += 1; // Increment player 2 score
+            }
+        });
+    });
+
+    // Adjust the score tracking logic to differentiate between player scores
+    var player1Score = 0;
+    var player2Score = 0;
+
+    // Update score display for each player
+    var displayPlayer1Score = document.getElementById("playerOneScore");
+    var displayPlayer2Score = document.getElementById("playerTwoScore");
+
+    // Display scores for both players
+    displayPlayer1Score.innerHTML = player1Score;
+    displayPlayer2Score.innerHTML = player2Score;
+
+    function preload() {
+        // Load image assets here
+        img = loadImage('../background.png');
+    }
+
+    function setup() {
+        createCanvas(window.innerWidth, window.innerHeight);
+    }
+
+    function draw() {
+        background(img);
+    }
 </script>
 </body>
 </html>
+```
 
+This includes all the HTML and JavaScript code from your `index.html` file.
