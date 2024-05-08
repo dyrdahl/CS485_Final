@@ -26,7 +26,7 @@
         background-repeat: no-repeat;
         background-size: cover, contain, auto;
         background-color: #ffffff;
-        /*overflow: hidden;*/
+        overflow: hidden;
     }
 
     /*Buttons*/
@@ -76,20 +76,33 @@
         height: 60px;
     }
 
-    /* DEBUG SLIDERS */
-    .boxy {
+    .boxy1 {
         /*background-image: url("imgs/box_texture_3.jpeg");*/
         background-position: center center;
         position: absolute;
         top: 0px;
-        left: 50%;
-        transform: translate3d(-50%, 0, 0);
+        left: 0%;
+        transform: translate3d(+10%, 0, 0);
         width: fit-content;
         z-index: 0;
         background-size: cover, contain, auto;
         border: 2px solid #ff0c0c;
         padding: 8px;
-        background-color: rgba(248, 182, 182, 0.4);
+        background-color: rgba(0, 255, 187, 0.47);
+    }
+    .boxy2 {
+        /*background-image: url("imgs/box_texture_3.jpeg");*/
+        background-position: center center;
+        position: absolute;
+        top: 0px;
+        right: 0px;
+        transform: translate3d(-10%, 0, 0);
+        width: fit-content;
+        z-index: 0;
+        background-size: cover, contain, auto;
+        border: 2px solid #ff0c0c;
+        padding: 8px;
+        background-color: rgba(186, 182, 248, 0.75);
     }
 </style>
 
@@ -100,9 +113,13 @@
         </div>
     </div>
 </div>
-<div class="boxy">
+<div class="boxy1">
     <h3>PLAYER 1 SCORE:</h3>
     <p>Total: <span id="playerOneScore"></span></p>
+</div>
+<div class="boxy2">
+    <h3>PLAYER 2 SCORE:</h3>
+    <p>Total: <span id="playerTwoScore"></span></p>
 </div>
 
 <script>
@@ -119,20 +136,31 @@
 
     var currSprite = 'idle';
     var keyChanged = false;
+    const numBoids = 200;
 
-    const numBoids = 400;
+    // let alignSlider, cohesionSlider, separationSlider;  // DEBUG SLIDERS
 
-    let alignSlider, cohesionSlider, separationSlider;  // DEBUG SLIDERS
-
-    let alignFactor = 25
-    let separationFactor = 50
-    let cohesionFactor = 50
+    let alignFactor = 60
+    let separationFactor = 40
+    let cohesionFactor = 60
     let mForce = 0.1
     let mSpeed = 5
+    let currBoidSprite = 'jelly_1';
+    // let separation_mod = 1.5;
+    // let alignment_mod = 1;
+    // let cohesion_mod = 0.25;
+
+    let separation_mod = 1.5;
+    let alignment_mod = 1;
+    let cohesion_mod = 0.75;
 
     let mapTransition = false;
     var currBackground = 'center';
     let prev_Background = 'center';
+    let stagesComplete = 0;
+
+    let boidSpawnX = Math.floor(Math.random() * (window.innerWidth-100));
+    let boidSpawnY = Math.floor(Math.random() * (window.innerHeight-100));
 
     // setTimeout(function () {                                                               // DISABLE TITLE
     //     $('.button').prop('disabled', true); // Disable button until loading finished      // DISABLE TITLE
@@ -147,10 +175,15 @@
 
     function setup(){
 
+        console.log(Math.round(window.innerWidth - 200))
+        console.log(Math.round(window.innerWidth))
+
         //Note: PLAYER SPRITES
         $.getJSON( "../Penguins/animationData.json", function( data ) {
             console.log("============== STARTING ==============");
-            sprites_to_draw[2].push( new Sprite(data, Math.round(window.innerWidth/2) , Math.round(window.innerHeight/2), currSprite, true) );
+            sprites_to_draw[2].push( new Sprite(data, 20 , Math.round(window.innerHeight - 150), currSprite, true) );
+            sprites_to_draw[2].push( new Sprite(data, Math.round(window.innerWidth - 200), Math.round(window.innerHeight - 150), currSprite, true) );
+
         });
 
         //Note: BOID SPRITES
@@ -158,7 +191,7 @@
             console.log("============== STARTING ==============");
             for(let i = 0; i < numBoids; i++)
             {
-                sprites_to_draw[1].push( new Boid(data, 4 , 4, 'lazy', true) );
+                sprites_to_draw[1].push( new Boid(data, boidSpawnX, boidSpawnY, currBoidSprite, true) );
             }
         });
 
@@ -179,13 +212,15 @@
         console.log("%c" + message, "color:" + color + ";font-weight:bold;");
     }
     var keyStates = {};
+    var keyStatesPlayer1 = {};
+    var keyStatesPlayer2 = {};
     function gameStarted() {
         $(document).ready(function () {
             console.log("Page is now ready");
             resize();
-            alignSlider = createSlider(0, 2, 1.5, 0.1);
-            cohesionSlider = createSlider(0, 2, 1, 0.1);
-            separationSlider = createSlider(0, 2, 2, 0.1);
+            // alignSlider = createSlider(0, 2, 1.5, 0.1);
+            // cohesionSlider = createSlider(0, 2, 1, 0.1);
+            // separationSlider = createSlider(0, 2, 2, 0.1);
 
             // createCanvas(600, 400); // DEBUGGING BOIDS
             // img.onload = function () {
@@ -199,76 +234,100 @@
         window.addEventListener('resize', resize);
 
         document.addEventListener('keydown', function (event) {
-            if (!keyStates[event.key]) {
-                keyStates[event.key] = {pressed: true, firstPress: true};
-                keyChanged = true;
+            if ([p1_up, p1_down, p1_right, p1_left].includes(event.key)) {
+                keyStatesPlayer1[event.key] = true;
+            } else if ([p2_up, p2_down, p2_right, p2_left].includes(event.key)) {
+                keyStatesPlayer2[event.key] = true;
             }
         });
 
         document.addEventListener('keyup', function (event) {
-            if (keyStates[event.key]) {
-                delete keyStates[event.key];
+            if ([p1_up, p1_down, p1_right, p1_left].includes(event.key)) {
+                delete keyStatesPlayer1[event.key];
+            } else if ([p2_up, p2_down, p2_right, p2_left].includes(event.key)) {
+                delete keyStatesPlayer2[event.key];
             }
         });
 
-        function updateSpriteMovement() {
+        let p1_up = 'w';
+        let p1_down = 's';
+        let p1_right = 'd';
+        let p1_left = 'a';
+
+        let p2_up = 'ArrowUp';
+        let p2_down = 'ArrowDown';
+        let p2_right = 'ArrowRight';
+        let p2_left = 'ArrowLeft';
+
+        function updateSpriteMovement(player, index) {
+            let keyStates = (player === 1) ? keyStatesPlayer1 : keyStatesPlayer2;
+            let up    =  (player === 1) ? p1_up : p2_up;
+            let down  =  (player === 1) ? p1_down : p2_down;
+            let right =  (player === 1) ? p1_right : p2_right;
+            let left  =  (player === 1) ? p1_left : p2_left;
+
+            let sprite = sprites_to_draw[2][index];
+            sprite.state = 'idle'; // Default state
+
             if (Object.keys(keyStates).length === 0) {
-                currSprite = 'idle';
+                sprite.state = 'idle';
+
             }
             else {
-                var north = keyStates['w'];
-                var south = keyStates['s'];
-                var east = keyStates['d'];
-                var west = keyStates['a'];
+                var north = keyStates[up];
+                var south = keyStates[down];
+                var east = keyStates[right];
+                var west = keyStates[left];
 
                 if (north && east) {
-                    currSprite = 'walk_NE';
+                    sprite.state = 'walk_NE';
                 } else if (north && west) {
-                    currSprite = 'walk_NW';
+                    sprite.state = 'walk_NW';
                 } else if (south && east) {
-                    currSprite = 'walk_SE';
+                    sprite.state = 'walk_SE';
                 } else if (south && west) {
-                    currSprite = 'walk_SW';
+                    sprite.state = 'walk_SW';
 
                 } else {
                     if (north) {
-                        currSprite = 'walk_N';
+                        sprite.state = 'walk_N';
                     }
                     if (south) {
-                        currSprite = 'walk_S';
+                        sprite.state = 'walk_S';
                     }
                     if (east) {
-                        currSprite = 'walk_E';
+                        sprite.state = 'walk_E';
                     }
                     if (west) {
-                        currSprite = 'walk_W';
+                        sprite.state = 'walk_W';
                     }
                     if(keyStates['f']){
-                        currSprite = 'idleSpin';
+                        sprite.state = 'idleSpin';
                     }
                     if(keyStates['q']){
-                        currSprite = 'idleFall';
+                        sprite.state = 'idleFall';
                     }
                     if(keyStates['e']){
-                        currSprite = 'idleLayDown';
+                        sprite.state = 'idleLayDown';
                     }
                 }
             }
         }
-
 
         let start, previousTimeStamp;
 
         function draw_loop() {
             if (start === undefined) {
                 start = Date.now();
-            }else if ( (Date.now() - start) < 40){
+            }else if ( (Date.now() - start) < 30){
                 requestAnimationFrame(draw_loop);
                 return;
             };
             start = Date.now();
 
-            updateSpriteMovement();
+            updateSpriteMovement(1, 0);
+            updateSpriteMovement(2, 1);
+
             var background_length = sprites_to_draw[0].length;
             var boids_length = sprites_to_draw[1].length;
             var foreground_length = sprites_to_draw[2].length;
@@ -280,7 +339,9 @@
 
                     for(let i = 0; i < numBoids; i++)
                     {
-                        sprites_to_draw[1].push( new Boid(data, window.innerWidth - 100 , window.innerHeight - 100, 'lazy', true) );
+                        // sprites_to_draw[1].push( new Boid(data, window.innerWidth - 100 , window.innerHeight - 100, currBoidSprite, true) );
+                        sprites_to_draw[1].push( new Boid(data, boidSpawnX , boidSpawnY, currBoidSprite, true) );
+
                     }
                 });
                 $.getJSON( "../Background/animationData.json", function( data ) {
@@ -298,6 +359,13 @@
                 has_background_changed = sprites_to_draw[0][i].draw();
             }
 
+            // // Draw the background
+            // if (sprites_to_draw[0].length > 0) {
+            //     sprites_to_draw[0].forEach(backgroundSprite => {
+            //         backgroundSprite.draw();
+            //     });
+            // }
+
             // Draw Boid Sprites
             for(var i = 0; i < boids_length; i++) {
                 sprites_to_draw[1][i].draw({
@@ -314,22 +382,44 @@
                 );
             }
 
-            sprites_to_draw[2].forEach(boid => {
-                sprites_to_draw[1].forEach(sprite => {
-                    if (checkCollision(boid, sprite)) {
-                        sprites_to_draw[1].splice(sprites_to_draw[1].indexOf(sprite), 1);
-                        player1_score += 1;
-                    }
-                });
+            // sprites_to_draw[2].forEach(boid => {
+            //     sprites_to_draw[1].forEach(sprite => {
+            //         if (checkCollision(boid, sprite)) {
+            //             sprites_to_draw[1].splice(sprites_to_draw[1].indexOf(sprite), 1);
+            //         }
+            //     });
+            // });
+            // sprites_to_draw[2].forEach(boid => {
+            //     sprites_to_draw[1].forEach((sprite, index) => {
+            //         if (checkCollision(boid, sprites_to_draw[2][0], 0)) {
+            //             sprites_to_draw[1].splice(index, 1);
+            //         } else if (checkCollision(boid, sprites_to_draw[2][1], 1)) {
+            //             sprites_to_draw[1].splice(index, 1);
+            //         }
+            //     });
+            // });
+
+            sprites_to_draw[1].forEach((boid, index) => {
+                if (checkCollision(boid, sprites_to_draw[2][0], 0)) {  // Check collisions for player 1
+                    sprites_to_draw[1].splice(index, 1);  // Remove the boid if there is a collision
+                }
+                if (checkCollision(boid, sprites_to_draw[2][1], 1)) {  // Check collisions for player 2
+                    sprites_to_draw[1].splice(index, 1);  // Remove the boid if there is a collision
+                }
             });
-            displayScore.innerHTML = player1_score;
+            displayScore.innerHTML  = player1_score;
+            displayScore2.innerHTML = player2_score;
             requestAnimationFrame(draw_loop);
         }
     }
     let player1_score = 0;
     var displayScore = document.getElementById("playerOneScore");
 
-    function checkCollision(boid, sprite) {
+    let player2_score = 0;
+    var displayScore2 = document.getElementById("playerTwoScore");
+
+
+    function checkCollision(boid, sprite, index) {
         //Note: Action to take for proximity
         let distance = calculateDistance(boid, sprite);
 
@@ -347,10 +437,16 @@
             let sprite_bottom = sprite.y + sprite.h;
 
             // Check if the hitboxes have overlapped
-            if (boid_right < sprite_left || boid_left > sprite_right || boid_bottom < sprite_top || boid_top > sprite_bottom) {
-                return false;
+            if (boid_right > sprite_left && boid_left < sprite_right && boid_bottom > sprite_top && boid_top < sprite_bottom) {
+                if(index === 0){
+                    player1_score++;
+                    document.getElementById("playerOneScore").innerHTML = player1_score;
+                }else if (index === 1){
+                    player2_score++;
+                    document.getElementById("playerOneScore").innerHTML = player2_score;
+                }
+                return true;
             }
-            return true;
         }
         return false;
     }

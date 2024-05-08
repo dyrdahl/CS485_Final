@@ -3,6 +3,10 @@ var lastTransitionPosition = { x: 0, y: 0 };
 var minimumTravelDistance = 40; // pixels
 
 var distanceTrav = 0;
+let boundUnlock = false;
+let currBoidCount;
+
+
 class Sprite {
     constructor(sprite_json, x, y, start_state){
         this.sprite_json = sprite_json;
@@ -19,22 +23,20 @@ class Sprite {
         this.h = this.sprite_json[this.root_e][this.state][this.cur_frame]['h'];
     }
     draw(state){
-
-        // If a sprite is ended mid-cycle, reset back to 0
         if(this.cur_frame >= this.sprite_json[this.root_e][this.state].length){
             this.cur_frame = 0;
         }
-        this.spriteLength = this.sprite_json[this.root_e][currSprite].length;
-        this.state = currSprite;
+        this.spriteLength = this.sprite_json[this.root_e][this.state].length;
+        this.state = this.state;
 
         if (keyChanged) {
             this.cur_frame = 0;
             keyChanged = false;
         }
         var ctx = canvas.getContext('2d');
-        if(this.sprite_json[this.root_e][currSprite][this.cur_frame]['img'] == null){
-            this.sprite_json[this.root_e][currSprite][this.cur_frame]['img'] = new Image();
-            this.sprite_json[this.root_e][currSprite][this.cur_frame]['img'].src = '../Penguins/' + this.root_e + '/' + currSprite + '/' + this.cur_frame + '.png';
+        if(this.sprite_json[this.root_e][this.state][this.cur_frame]['img'] == null){
+            this.sprite_json[this.root_e][this.state][this.cur_frame]['img'] = new Image();
+            this.sprite_json[this.root_e][this.state][this.cur_frame]['img'].src = '../Penguins/' + this.root_e + '/' + this.state + '/' + this.cur_frame + '.png';
         }
 
         if( this.cur_bk_data != null && state['has_background_changed'] === false){
@@ -42,86 +44,88 @@ class Sprite {
         }
 
         this.cur_bk_data = ctx.getImageData(this.x, this.y,
-            this.sprite_json[this.root_e][currSprite][this.cur_frame]['w'],
-            this.sprite_json[this.root_e][currSprite][this.cur_frame]['h']);
+            this.sprite_json[this.root_e][this.state][this.cur_frame]['w'],
+            this.sprite_json[this.root_e][this.state][this.cur_frame]['h']);
 
-        ctx.drawImage(this.sprite_json[this.root_e][currSprite][this.cur_frame]['img'], this.x, this.y);
+        ctx.drawImage(this.sprite_json[this.root_e][this.state][this.cur_frame]['img'], this.x, this.y);
 
         // Change the sprites velocity based on what the current sprite is
         if(Object.keys(keyStates).length === 0){
             this.x_v = 0;
             this.y_v = 0;
         }
-        if (currSprite === 'walk_N') {
+        if (this.state === 'walk_N') {
             this.x_v = 0;
             this.y_v = -10;
         }
-        if (currSprite === 'walk_S') {
+        if (this.state === 'walk_S') {
             this.x_v = 0;
             this.y_v = 10;
         }
-        if (currSprite === 'walk_W') {
+        if (this.state === 'walk_W') {
             this.x_v = -10;
             this.y_v = 0;
         }
-        if (currSprite === 'walk_E') {
+        if (this.state === 'walk_E') {
             this.x_v = 10;
             this.y_v = 0;
         }
-        if (currSprite === 'walk_NE'){
+        if (this.state === 'walk_NE'){
             this.x_v = 10;
             this.y_v = -10;
         }
-        if (currSprite === 'walk_NW'){
+        if (this.state === 'walk_NW'){
             this.x_v = -10;
             this.y_v = -10;
         }
-        if (currSprite === 'walk_SE'){
+        if (this.state === 'walk_SE'){
             this.x_v = 10;
             this.y_v = 10;
         }
-        if (currSprite === 'walk_SW'){
+        if (this.state === 'walk_SW'){
             this.x_v = -10;
             this.y_v = 10;
         }
-        if (currSprite === 'idleSpin'){
+        if (this.state === 'idleSpin'){
             this.x_v = 0;
             this.y_v = 0;
         }
-        if (currSprite === 'idleLayDown'){
+        if (this.state === 'idleLayDown'){
             this.x_v = 0;
             this.y_v = 0;
         }
-        if (currSprite === 'idleFall'){
+        if (this.state === 'idleFall'){
             this.x_v = 0;
             this.y_v = 0;
         }
 
-        // Boundary Checking
-        // EAST WALL
         if(this.x >= (window.innerWidth - this.w) ){
             this.bound_hit('E');
-            this.changeBackground('E');
-
+            // if(boundUnlock){
+                this.changeBackground('E');
+            // }
         }
         // WEST WALL
         else if(this.x <= 0){
             this.bound_hit('W');
-            this.changeBackground('W');
-
+            // if(boundUnlock) {
+                this.changeBackground('W');
+            // }
         }
         // SOUTH WALL
         else if(this.y >= (window.innerHeight - this.h) ){
             this.bound_hit('S');
-            this.changeBackground('S')
+            // if(boundUnlock) {
+                this.changeBackground('S');
+            // }
         }
         // NORTH WALL
         else if(this.y <= 0){
             this.bound_hit('N');
-            this.changeBackground('N')
-
-            debuggingOutput("            <________ BoundHit ________>" + currBackground, "orange");
-
+            // if(boundUnlock) {
+                this.changeBackground('N');
+            // }
+            // debuggingOutput("            <________ BoundHit ________>" + currBackground, "orange");
         }else{
             this.x = this.x + this.x_v;
             this.y = this.y + this.y_v;
@@ -134,106 +138,104 @@ class Sprite {
         return false;
     }
 
-    updatePosition(newX, newY) {
-        let deltaX = newX - this.lastX;
-        let deltaY = newY - this.lastY;
-        let distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-
-        this.accumulatedDistance += distance;
-        this.lastX = newX;
-        this.lastY = newY;
-    }
     changeBackground(side){
-        // var currentPosition = { x: this.x, y: this.y };
-        // var distanceTraveled = Math.sqrt(
-        //     Math.pow(currentPosition.x - lastTransitionPosition.x, 2) +
-        //     Math.pow(currentPosition.y - lastTransitionPosition.y, 2)
-        // );
-        //
-        // if (distanceTraveled < minimumTravelDistance) {
-        //     console.log("Minimum travel distance not met. Please move more.");
-        //     return; // Exit the function if minimum distance is not met
-        // }
-        //
-        // console.log("Transitioning background to " + side);
-        // lastTransitionPosition = currentPosition; // Update the position at the time of transition
+        let boidsRequired = numBoids * (stagesComplete + 1);
+        let boidsRemaining = boidsRequired - (player1_score + player2_score);
+        let shouldUnlock = boidsRemaining <= 0;
 
+        console.log("SC: " + stagesComplete + " | Boid Required: " + boidsRemaining + " | " + boidsRemaining + " | " + shouldUnlock)
+        if (shouldUnlock) {
+            boundUnlock = true; // Only set to true based on the game condition
+        }
+
+        if (!boundUnlock) return; // Prevent changing background if movement is locked
 
         if (currBackground === 'center') {
             switch (side) {
                 case 'N':
                     currBackground = 'north';
-                    this.y = (window.innerHeight - this.y) - this.h - this.y_v ;
-                    this.y = Math.max(0, Math.min(this.y, window.innerHeight - this.h));
+                    currBoidSprite = 'jelly_2';
+                    this.y = (window.innerHeight - this.y) - this.h - this.y_v;
                     break;
                 case 'E':
                     currBackground = 'east';
+                    currBoidSprite = 'jelly_3';
+                    this.x = 10;
                     break;
                 case 'S':
                     currBackground = 'south';
+                    currBoidSprite = 'jelly_4';
+                    this.y = 10;
                     break;
                 case 'W':
                     currBackground = 'west';
+                    currBoidSprite = 'coin_2';
+                    this.x = (window.innerWidth - this.x) - this.w - this.x_v;
                     break;
             }
+            stagesComplete++;
+            boundUnlock = false;
             mapTransition = true;
+            return;
 
         } else if (currBackground === 'north' && side === 'S') {
             currBackground = 'center';
+            this.y = 10;
             mapTransition = true;
-
+            stagesComplete++;
         } else if (currBackground === 'east' && side === 'W') {
             currBackground = 'center';
+            this.x = (window.innerWidth - this.x) - this.w - this.x_v;
             mapTransition = true;
-
+            stagesComplete++;
         } else if (currBackground === 'south' && side === 'N') {
             currBackground = 'center';
             this.y = (window.innerHeight - this.y) - this.h - this.y_v ;
-            this.y = Math.max(0, Math.min(this.y, window.innerHeight - this.h));
             mapTransition = true;
-
+            stagesComplete++;
         } else if (currBackground === 'west' && side === 'E') {
             currBackground = 'center';
+            this.x = 10;
             mapTransition = true;
-
+            stagesComplete++;
         }
+        currBoidSprite = 'jelly_1';
         console.log("Transition to " + currBackground);
+        boundUnlock = false;
     }
 
 
     bound_hit(){
-        console.error(" DISTANCE TRAVELED: x:" + lastTransitionPosition['x'] + " || y: " + lastTransitionPosition['y'] + " || dist: " + distanceTrav);
-
         var rightBound = (window.innerWidth - this.sprite_json[this.root_e][this.state][this.cur_frame]['w']);
         var bottomBound = (window.innerHeight - this.sprite_json[this.root_e][this.state][this.cur_frame]['h']);
 
-        if(currSprite === 'walk_E') {
+        if(this.state === 'walk_E') {
             this.x_v = 0;
         }
-        if(currSprite === 'walk_N'){
+        if(this.state === 'walk_N'){
             this.y = this.y + 10;
             this.y_v = 0;
         }
-        if(currSprite === 'walk_W'){
+        if(this.state === 'walk_W'){
             this.x = this.x + 10;
             this.x_v = 0;
         }
-        if(currSprite === 'walk_S'){
+        if(this.state === 'walk_S'){
             this.y_v = 0;
         }
-        if(currSprite === 'walk_NE'){
+        if(this.state === 'walk_NE'){
             this.y = this.y - 10;
             this.y_v = 10;
         }
-        if(currSprite === 'walk_NW'){
+        if(this.state === 'walk_NW'){
             this.y = this.y - 10;
             this.y_v = 10;
         }
-        if(currSprite === 'walk_SW'){
+        if(this.state === 'walk_SW'){
             this.y = this.y + 10;
             this.y_v = 10;
         }
-        if(currSprite === 'walk_SE'){
+        if(this.state === 'walk_SE'){
             this.y = this.y + 10;
             this.y_v = -10;
         }
@@ -258,9 +260,9 @@ class Sprite {
 class Boid {
     constructor(sprite_json, x, y, start_state){
         this.sprite_json = sprite_json;
-        this.state = 'lazy';
-        this.root_e = 'TenderBud';
-        this.boid_cur_frame = 0;
+        this.state = start_state;
+        this.root_e = 'Underwater';
+        this.boid_cur_frame = Math.floor(Math.random() * this.sprite_json[this.root_e][this.state].length)
         this.x = x;
         this.y = y;
 
@@ -313,9 +315,13 @@ class Boid {
         let cohesion = this.cohesion(boids);
         let separation = this.separation(boids);
 
-        separation.mult(separationSlider.value());
-        cohesion.mult(cohesionSlider.value());
-        alignment.mult(alignSlider.value());
+        // separation.mult(separationSlider.value());
+        // cohesion.mult(cohesionSlider.value());
+        // alignment.mult(alignSlider.value());
+
+        separation.mult(separation_mod);
+        cohesion.mult(alignment_mod);
+        alignment.mult(cohesion_mod);
 
         this.acceleration.add(alignment);
         this.acceleration.add(separation);
@@ -413,38 +419,34 @@ class Boid {
 }
 
 //Note: =================================== BACKGROUND ===================================
-class BackgroundSprite{
-
-    constructor(sprite_json, start_state){
+class BackgroundSprite {
+    constructor(sprite_json, start_state) {
         this.sprite_json = sprite_json;
         this.state = start_state;
-
         this.root_e = "CyberBack";
         this.back_cur_frame = 0;
-        this.x = 0;
-        this.y = 0;
-
+        this.frameDelay = 200; // Time in milliseconds between frames
+        this.lastFrameChangeTime = Date.now();
     }
-    draw(state){
-        if(this.back_cur_frame >= this.sprite_json[this.root_e][this.state].length){
-            this.back_cur_frame = 0;
-        }
-        this.state = currBackground;
 
+    draw() {
         var ctx = canvas.getContext('2d');
-        if(this.sprite_json[this.root_e][currBackground][this.back_cur_frame]['img'] == null){
-            this.sprite_json[this.root_e][currBackground][this.back_cur_frame]['img'] = new Image();
-            this.sprite_json[this.root_e][currBackground][this.back_cur_frame]['img'].src = '../Background/' + this.root_e + '/' + currBackground + '/' + this.back_cur_frame + '.png';
+        if (this.sprite_json[this.root_e][this.state][this.back_cur_frame]['img'] == null) {
+            this.sprite_json[this.root_e][this.state][this.back_cur_frame]['img'] = new Image();
+            this.sprite_json[this.root_e][this.state][this.back_cur_frame]['img'].src = '../Background/' + this.root_e + '/' + this.state + '/' + this.back_cur_frame + '.png';
         }
 
-        ctx.drawImage(this.sprite_json[this.root_e][currBackground][this.back_cur_frame]['img'],
-            this.x, this.y, window.innerWidth, window.innerHeight );
+        // Draw the current frame
+        ctx.drawImage(this.sprite_json[this.root_e][this.state][this.back_cur_frame]['img'], 0, 0, window.innerWidth, window.innerHeight);
 
-        this.back_cur_frame = this.back_cur_frame + 1;
-        if(this.back_cur_frame >= this.sprite_json[this.root_e][currBackground].length){
-            this.back_cur_frame = 0;
+        // Check if it's time to update the background frame
+        let currentTime = Date.now();
+        if (currentTime - this.lastFrameChangeTime >= this.frameDelay) {
+            this.back_cur_frame++;
+            if (this.back_cur_frame >= this.sprite_json[this.root_e][this.state].length) {
+                this.back_cur_frame = 0;  // Loop back to the first frame
+            }
+            this.lastFrameChangeTime = currentTime;  // Reset the last frame change time
         }
-
-        return true;
     }
 }
